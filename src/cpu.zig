@@ -1,3 +1,5 @@
+const ParseError = @import("disasm").ParseError;
+
 const Cpu = struct {
     v0: u8,
     v1: u8,
@@ -14,8 +16,10 @@ const Cpu = struct {
     vc: u8,
     ve: u8,
     vf: u8,
+
     i: u16,
     pc: u16,
+    sp: u8,
 
     delay: u8,
     sound: u8,
@@ -37,11 +41,15 @@ const Cpu = struct {
             .vc = 0,
             .ve = 0,
             .vf = 0,
+
             .i = 0,
             .pc = 0,
+            .sp = 0,
 
             .delay = 0,
             .sound = 0,
         };
     }
+
+    pub fn cycle(self: *Cpu) ParseError {}
 };
