@@ -1,6 +1,9 @@
-const ParseError = @import("disasm").ParseError;
+const disasm = @import("disasm.zig");
+const std = @import("std");
+const ParseError = disasm.ParseError;
+const Disasm = disasm.Disasm;
 
-const Cpu = struct {
+pub const Cpu = struct {
     v0: u8,
     v1: u8,
     v2: u8,
@@ -51,5 +54,8 @@ const Cpu = struct {
         };
     }
 
-    pub fn cycle(self: *Cpu) ParseError {}
+    pub fn cycle(self: *Cpu) void {
+        const res = Disasm.parse([_]u8{ 0x80, 00 });
+        std.debug.warn("{}\n", res);
+    }
 };

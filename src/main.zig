@@ -1,6 +1,8 @@
-const gfx = @import("gfx");
+const cpu = @import("cpu.zig");
+const gfx = @import("gfx.zig");
 const std = @import("std");
 
 pub fn main() anyerror!void {
-    std.debug.warn("All your base are belong to us.\n");
+    var icpu = cpu.Cpu.new();
+    icpu.cycle();
 }
