@@ -1,7 +1,7 @@
-const disasm = @import("disasm.zig");
-const std = @import("std");
+const Opcode = @import("disasm.zig").Opcode;
+const OpcodeTag = @import("disasm.zig").OpcodeTag;
 const ParseError = disasm.ParseError;
-const Disasm = disasm.Disasm;
+const std = @import("std");
 
 pub const Cpu = struct {
     v0: u8,
@@ -54,8 +54,7 @@ pub const Cpu = struct {
         };
     }
 
-    pub fn cycle(self: *Cpu) void {
-        const res = Disasm.parse([_]u8{ 0x80, 00 });
-        std.debug.warn("{}\n", res);
+    pub fn cycle(self: *Cpu, op: OpcodeTag) void {
+        std.debug.warn("{}\n", op);
     }
 };

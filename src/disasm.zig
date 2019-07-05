@@ -1,4 +1,7 @@
-pub const ParseError = error{InvalidOpcode};
+pub const ParseError = error{
+    InvalidOpcode,
+    InvalidArg,
+};
 
 pub const OpcodeTag = enum(u4) {
     // SYS, CLS, or RET depending on low nibble and a half
@@ -53,6 +56,23 @@ pub const Opcode = union(OpcodeTag) {
     DRW_VX_VY_N: RegRegArg,
     SKP_VX: u4,
     LD_VX: RegArg,
+};
+
+pub const MathFn = enum {
+    OR,
+    AND,
+    XOR,
+    ADD,
+    SUB,
+    // If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0.
+    // Then Vx is divided by 2.
+    SHR,
+    // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy,
+    // and the results stored in Vx.
+    SUBN,
+    // If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0.
+    // Then Vx is multiplied by 2.
+    SHL,
 };
 
 pub const RegArg = struct {
