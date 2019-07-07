@@ -6,19 +6,25 @@ const mem = @import("mem.zig");
 const Allocator = std.mem.Allocator;
 const Cpu = @import("cpu.zig").Cpu;
 const Disasm = @import("disasm.zig").Disasm;
+const Display = @import("gfx.zig").Display;
 const File = @import("std").fs.File;
 
 pub const Chip8 = struct {
     allocator: *Allocator,
-    cpu: *Cpu,
+    disp: Display,
     ram: []u8,
+    cpu: *Cpu,
 
     pub fn new(allocator: *Allocator) !Chip8 {
+        var disp = try Display.new();
+        var ram = try allocator.alloc(u8, 4096);
+
         return Chip8{
             .allocator = allocator,
-            .cpu = &Cpu.new(),
+            .disp = disp,
             // put the RAM on the heap
-            .ram = try allocator.alloc(u8, 4096),
+            .ram = ram,
+            .cpu = &Cpu.new(&disp, ram),
         };
     }
 
@@ -31,7 +37,7 @@ pub const Chip8 = struct {
         while (chunks.next()) |chunk| {
             const op = try Disasm.parse(chunk);
             self.cpu.cycle(op);
-            std.debug.warn("{X}\n", self.cpu);
+            std.debug.warn("{x}\n", self.cpu.v);
         }
     }
 };

@@ -1,6 +1,8 @@
+const Display = @import("gfx.zig").Display;
 const Opcode = @import("disasm.zig").Opcode;
 const OpcodeTag = @import("disasm.zig").OpcodeTag;
 const OpFn = @import("disasm.zig").OpFn;
+const SysFn = @import("disasm.zig").SysFn;
 const ParseError = disasm.ParseError;
 const std = @import("std");
 
@@ -11,10 +13,13 @@ pub const Cpu = struct {
     pc: u16,
     sp: u8,
 
-    delay: u8,
-    sound: u8,
+    dt: u8,
+    st: u8,
 
-    pub fn new() Cpu {
+    disp: *Display,
+    ram: []u8,
+
+    pub fn new(disp: *Display, ram: []u8) Cpu {
         return Cpu{
             .v = [_]u8{
                 0, 0, 0, 0, 0, 0, 0, 0,
@@ -25,8 +30,11 @@ pub const Cpu = struct {
             .pc = 0,
             .sp = 0,
 
-            .delay = 0,
-            .sound = 0,
+            .dt = 0,
+            .st = 0,
+
+            .disp = disp,
+            .ram = ram,
         };
     }
 
@@ -34,7 +42,13 @@ pub const Cpu = struct {
         std.debug.warn("{}\n", op);
 
         switch (op) {
-            Opcode.SYS => return,
+            Opcode.SYS => |top| {
+                switch (top) {
+                    SysFn.NOP => return,
+                    SysFn.CLS => self.disp.clear(),
+                    SysFn.RET => return,
+                }
+            },
             Opcode.JP => |top| { // top = this op
                 self.pc = @intCast(u16, top);
             },
@@ -149,16 +163,16 @@ pub const Cpu = struct {
             Opcode.LD_VX => |top| {
                 switch (top.Val) {
                     0x07 => {
-                        self.v[top.Reg] = self.delay;
+                        self.v[top.Reg] = self.dt;
                     },
                     0x0a => {
                         // TODO: Wait for a key press, store the value of the key in Vx
                     },
                     0x15 => {
-                        self.delay = self.v[top.Reg];
+                        self.dt = self.v[top.Reg];
                     },
                     0x18 => {
-                        self.sound = self.v[top.Reg];
+                        self.st = self.v[top.Reg];
                     },
                     0x1e => {
                         self.i = self.i +% self.v[top.Reg];

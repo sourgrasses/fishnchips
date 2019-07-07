@@ -42,7 +42,7 @@ pub const OpcodeTag = enum(u4) {
 };
 
 pub const Opcode = union(OpcodeTag) {
-    SYS: u8,
+    SYS: SysFn,
     JP: u12,
     CALL: u12,
     SE_VX_NN: RegArg,
@@ -58,6 +58,12 @@ pub const Opcode = union(OpcodeTag) {
     DRW_VX_VY_N: RegRegArg,
     SKP_VX: u4,
     LD_VX: RegArg,
+};
+
+pub const SysFn = enum(u8) {
+    NOP = 0x00,
+    CLS = 0xe0,
+    RET = 0xee,
 };
 
 pub const OpFn = enum(u4) {
@@ -103,7 +109,10 @@ pub const RegReg = struct {
 pub const Disasm = struct {
     pub fn parse(op: []const u8) !Opcode {
         switch (op[0] >> 4) {
-            @enumToInt(OpcodeTag.SYS) => return Opcode{ .SYS = 0 },
+            @enumToInt(OpcodeTag.SYS) => {
+                const sysfn = @intToEnum(SysFn, op[1]);
+                return Opcode{ .SYS = sysfn };
+            },
             @enumToInt(OpcodeTag.JP) => {
                 const arg = (@intCast(u12, op[0]) << 8) | op[1];
                 const res = Opcode{ .JP = arg };
