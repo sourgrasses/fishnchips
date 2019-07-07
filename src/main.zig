@@ -10,7 +10,7 @@ pub fn main() anyerror!void {
 
     const allocator = &arena.allocator;
 
-    var chip = Chip8.new(allocator);
+    var chip = try Chip8.new(allocator);
     const res = chip.run_rom("pong.ch8");
 
     std.debug.warn("{}\n", res);

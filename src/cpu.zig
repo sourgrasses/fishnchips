@@ -1,24 +1,11 @@
 const Opcode = @import("disasm.zig").Opcode;
 const OpcodeTag = @import("disasm.zig").OpcodeTag;
+const OpFn = @import("disasm.zig").OpFn;
 const ParseError = disasm.ParseError;
 const std = @import("std");
 
 pub const Cpu = struct {
-    v0: u8,
-    v1: u8,
-    v2: u8,
-    v3: u8,
-    v4: u8,
-    v5: u8,
-    v6: u8,
-    v7: u8,
-    v8: u8,
-    v9: u8,
-    va: u8,
-    vb: u8,
-    vc: u8,
-    ve: u8,
-    vf: u8,
+    v: [16]u8,
 
     i: u16,
     pc: u16,
@@ -29,21 +16,10 @@ pub const Cpu = struct {
 
     pub fn new() Cpu {
         return Cpu{
-            .v0 = 0,
-            .v1 = 0,
-            .v2 = 0,
-            .v3 = 0,
-            .v4 = 0,
-            .v5 = 0,
-            .v6 = 0,
-            .v7 = 0,
-            .v8 = 0,
-            .v9 = 0,
-            .va = 0,
-            .vb = 0,
-            .vc = 0,
-            .ve = 0,
-            .vf = 0,
+            .v = [_]u8{
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+            },
 
             .i = 0,
             .pc = 0,
@@ -54,7 +30,155 @@ pub const Cpu = struct {
         };
     }
 
-    pub fn cycle(self: *Cpu, op: OpcodeTag) void {
+    pub fn cycle(self: *Cpu, op: Opcode) void {
         std.debug.warn("{}\n", op);
+
+        switch (op) {
+            Opcode.SYS => return,
+            Opcode.JP => |top| { // top = this op
+                self.pc = @intCast(u16, top);
+            },
+            Opcode.CALL => |top| {
+                self.sp += 1;
+                // put the current pc on top of the stack
+                self.pc = @intCast(u16, top);
+            },
+            Opcode.SE_VX_NN => |top| {
+                if (self.v[top.Reg] == top.Val) {
+                    self.pc += 2;
+                } else {
+                    self.pc += 1;
+                }
+            },
+            Opcode.SNE_VX_NN => |top| {
+                if (self.v[top.Reg] != top.Val) {
+                    self.pc += 2;
+                } else {
+                    self.pc += 1;
+                }
+            },
+            Opcode.SE_VX_VY => |top| {
+                if (self.v[top.RegX] == self.v[top.RegY]) {
+                    self.pc += 2;
+                } else {
+                    self.pc += 1;
+                }
+            },
+            Opcode.LD_VX_NN => |top| {
+                self.v[top.Reg] = top.Val;
+                self.pc += 1;
+            },
+            Opcode.ADD_VX_NN => |top| {
+                // let's assume for now we want this to wrap around on overflow
+                self.v[top.Reg] = self.v[top.Reg] +% top.Val;
+                self.pc += 1;
+            },
+            Opcode.LD_VX_VY_OP => |top| {
+                switch (top.Op) {
+                    OpFn.LD => {
+                        self.v[top.RegX] = self.v[top.RegY];
+                    },
+                    OpFn.OR => {
+                        self.v[top.RegX] = self.v[top.RegY] | self.v[top.RegX];
+                    },
+                    OpFn.AND => {
+                        self.v[top.RegX] = self.v[top.RegY] & self.v[top.RegX];
+                    },
+                    OpFn.XOR => {
+                        self.v[top.RegX] = self.v[top.RegY] ^ self.v[top.RegX];
+                    },
+                    OpFn.ADD => {
+                        self.v[top.RegX] = self.v[top.RegY] +% self.v[top.RegX];
+                    },
+                    OpFn.SUB => {
+                        self.v[top.RegX] = self.v[top.RegY] -% self.v[top.RegX];
+                    },
+                    OpFn.SHR => {
+                        if (self.v[top.RegX] & 0x01 == 0x1) {
+                            self.v[0xf] = 0x01;
+                        } else {
+                            self.v[0xf] = 0x00;
+                        }
+
+                        self.v[top.RegX] /= 2;
+                    },
+                    OpFn.SUBN => {
+                        if (self.v[top.RegY] > self.v[top.RegX]) {
+                            self.v[0xf] = 0x01;
+                        } else {
+                            self.v[0xf] = 0x00;
+                        }
+
+                        self.v[top.RegX] = self.v[top.RegY] -% self.v[top.RegX];
+                    },
+                    OpFn.SHL => {
+                        if (self.v[top.RegX] & 0x01 == 0x1) {
+                            self.v[0xf] = 0x01;
+                        } else {
+                            self.v[0xf] = 0x00;
+                        }
+
+                        self.v[top.RegX] = self.v[top.RegX] *% self.v[top.RegX];
+                    },
+                }
+            },
+            Opcode.SNE_VX_VY => |top| {
+                if (self.v[top.RegX] != self.v[top.RegY]) {
+                    self.pc += 2;
+                } else {
+                    self.pc += 1;
+                }
+            },
+            Opcode.LD_I_NNN => |top| {
+                self.i = top;
+            },
+            Opcode.JP_V0_NNN => |top| {
+                self.pc = self.v[0x0] +% top;
+            },
+            Opcode.RND_VX_NN => |top| {
+                // TODO: randomize rnd
+                const rnd = 10;
+                self.v[top.Reg] = top.Val & rnd;
+            },
+            Opcode.DRW_VX_VY_N => {
+                // TODO: display stuff
+            },
+            Opcode.SKP_VX => {
+                // TODO: keyboard stuff
+            },
+            Opcode.LD_VX => |top| {
+                switch (top.Val) {
+                    0x07 => {
+                        self.v[top.Reg] = self.delay;
+                    },
+                    0x0a => {
+                        // TODO: Wait for a key press, store the value of the key in Vx
+                    },
+                    0x15 => {
+                        self.delay = self.v[top.Reg];
+                    },
+                    0x18 => {
+                        self.sound = self.v[top.Reg];
+                    },
+                    0x1e => {
+                        self.i = self.i +% self.v[top.Reg];
+                    },
+                    0x29 => {
+                        // TODO: sprite/display stuff
+                    },
+                    0x33 => {
+                        // TODO: interop
+                    },
+                    0x55 => {
+                        // TODO: interop
+                    },
+                    0x65 => {
+                        // TODO: interop
+                    },
+                    else => unreachable,
+                }
+            },
+            else => unreachable,
+        }
     }
 };

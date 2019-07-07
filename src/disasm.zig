@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const ParseError = error{
     InvalidOpcode,
     InvalidArg,
@@ -40,7 +42,7 @@ pub const OpcodeTag = enum(u4) {
 };
 
 pub const Opcode = union(OpcodeTag) {
-    SYS,
+    SYS: u8,
     JP: u12,
     CALL: u12,
     SE_VX_NN: RegArg,
@@ -48,7 +50,7 @@ pub const Opcode = union(OpcodeTag) {
     SE_VX_VY: RegReg,
     LD_VX_NN: RegArg,
     ADD_VX_NN: RegArg,
-    LD_VX_VY_OP: RegRegArg,
+    LD_VX_VY_OP: RegRegOp,
     SNE_VX_VY: RegReg,
     LD_I_NNN: u12,
     JP_V0_NNN: u12,
@@ -58,26 +60,33 @@ pub const Opcode = union(OpcodeTag) {
     LD_VX: RegArg,
 };
 
-pub const MathFn = enum {
-    OR,
-    AND,
-    XOR,
-    ADD,
-    SUB,
+pub const OpFn = enum(u4) {
+    LD = 0x0,
+    OR = 0x1,
+    AND = 0x2,
+    XOR = 0x3,
+    ADD = 0x4,
+    SUB = 0x5,
     // If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0.
     // Then Vx is divided by 2.
-    SHR,
+    SHR = 0x6,
     // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy,
     // and the results stored in Vx.
-    SUBN,
+    SUBN = 0x7,
     // If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0.
     // Then Vx is multiplied by 2.
-    SHL,
+    SHL = 0xe,
 };
 
 pub const RegArg = struct {
     Reg: u4,
     Val: u8,
+};
+
+pub const RegRegOp = struct {
+    RegX: u4,
+    RegY: u4,
+    Op: OpFn,
 };
 
 pub const RegRegArg = struct {
@@ -92,30 +101,36 @@ pub const RegReg = struct {
 };
 
 pub const Disasm = struct {
-    pub fn parse(op: []const u8) !OpcodeTag {
-        const opp = switch (op[0] >> 4) {
-            @enumToInt(OpcodeTag.SYS) => Opcode.SYS,
-            @enumToInt(OpcodeTag.JP) => b: {
+    pub fn parse(op: []const u8) !Opcode {
+        switch (op[0] >> 4) {
+            @enumToInt(OpcodeTag.SYS) => return Opcode{ .SYS = 0 },
+            @enumToInt(OpcodeTag.JP) => {
                 const arg = (@intCast(u12, op[0]) << 8) | op[1];
-                break :b Opcode{ .JP = arg };
+                const res = Opcode{ .JP = arg };
+
+                return res;
             },
-            @enumToInt(OpcodeTag.CALL) => b: {
+            @enumToInt(OpcodeTag.CALL) => {
                 const arg = (@intCast(u12, op[0]) << 8) | op[1];
-                break :b Opcode{ .CALL = arg };
+                const res = Opcode{ .CALL = arg };
+
+                return res;
             },
-            @enumToInt(OpcodeTag.SE_VX_NN) => b: {
+            @enumToInt(OpcodeTag.SE_VX_NN) => {
                 // mask off the high nibble and cast to 4-bit uint
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .SE_VX_NN = arg };
 
-                break :b Opcode{ .SE_VX_NN = arg };
+                return res;
             },
-            @enumToInt(OpcodeTag.SNE_VX_NN) => b: {
+            @enumToInt(OpcodeTag.SNE_VX_NN) => {
                 // mask off the high nibble and cast to 4-bit uint
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .SNE_VX_NN = arg };
 
-                break :b Opcode{ .SNE_VX_NN = arg };
+                return res;
             },
             @enumToInt(OpcodeTag.SE_VX_VY) => b: {
                 if ((op[1] & 0x0f) != 0x0) {
@@ -124,29 +139,35 @@ pub const Disasm = struct {
 
                 const x = @intCast(u4, (op[0] & 0x0f));
                 const y = @intCast(u4, (op[1] >> 4));
-                const arg = RegReg{ .RegX = x, .RegY = y };
 
-                break :b Opcode{ .SE_VX_VY = arg };
+                const arg = RegReg{ .RegX = x, .RegY = y };
+                const res = Opcode{ .SE_VX_VY = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.LD_VX_NN) => b: {
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .LD_VX_NN = arg };
 
-                break :b Opcode{ .LD_VX_NN = arg };
+                return res;
             },
             @enumToInt(OpcodeTag.ADD_VX_NN) => b: {
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .ADD_VX_NN = arg };
 
-                break :b Opcode{ .ADD_VX_NN = arg };
+                return res;
             },
             @enumToInt(OpcodeTag.LD_VX_VY_OP) => b: {
                 const x = @intCast(u4, (op[0] & 0x0f));
                 const y = @intCast(u4, (op[1] >> 4));
-                const n = @intCast(u4, (op[1] & 0x0f));
-                const arg = RegRegArg{ .RegX = x, .RegY = y, .Val = n };
+                const n = @intToEnum(OpFn, @intCast(u4, (op[1] & 0x0f)));
 
-                break :b Opcode{ .LD_VX_VY_OP = arg };
+                const arg = RegRegOp{ .RegX = x, .RegY = y, .Op = n };
+                const res = Opcode{ .LD_VX_VY_OP = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.SNE_VX_VY) => b: {
                 if ((op[1] & 0x0f) != 0x0) {
@@ -155,50 +176,60 @@ pub const Disasm = struct {
 
                 const x = @intCast(u4, (op[0] & 0x0f));
                 const y = @intCast(u4, (op[1] >> 4));
-                const arg = RegReg{ .RegX = x, .RegY = y };
 
-                break :b Opcode{ .SNE_VX_VY = arg };
+                const arg = RegReg{ .RegX = x, .RegY = y };
+                const res = Opcode{ .SNE_VX_VY = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.LD_I_NNN) => b: {
                 const arg = (@intCast(u12, op[0]) << 8) | op[1];
-                break :b Opcode{ .LD_I_NNN = arg };
+                const res = Opcode{ .LD_I_NNN = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.JP_V0_NNN) => b: {
                 const arg = (@intCast(u12, op[0]) << 8) | op[1];
-                break :b Opcode{ .JP_V0_NNN = arg };
+                const res = Opcode{ .JP_V0_NNN = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.RND_VX_NN) => b: {
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .RND_VX_NN = arg };
 
-                break :b Opcode{ .RND_VX_NN = arg };
+                return res;
             },
             @enumToInt(OpcodeTag.DRW_VX_VY_N) => b: {
                 const x = @intCast(u4, (op[0] & 0x0f));
                 const y = @intCast(u4, (op[1] >> 4));
                 const n = @intCast(u4, (op[1] & 0x0f));
-                const arg = RegRegArg{ .RegX = x, .RegY = y, .Val = n };
 
-                break :b Opcode{ .DRW_VX_VY_N = arg };
+                const arg = RegRegArg{ .RegX = x, .RegY = y, .Val = n };
+                const res = Opcode{ .DRW_VX_VY_N = arg };
+
+                return res;
             },
             @enumToInt(OpcodeTag.SKP_VX) => b: {
                 if (op[1] != 0x93 and op[1] != 0xa1) {
                     return ParseError.InvalidOpcode;
                 }
 
-                break :b Opcode{ .SKP_VX = @intCast(u4, (op[0] & 0x0f)) };
+                const res = Opcode{ .SKP_VX = @intCast(u4, (op[0] & 0x0f)) };
+
+                return res;
             },
             @enumToInt(OpcodeTag.LD_VX) => b: {
                 const reg = @intCast(u4, (op[0] & 0x0f));
                 const arg = RegArg{ .Reg = reg, .Val = op[1] };
+                const res = Opcode{ .LD_VX = arg };
 
-                break :b Opcode{ .LD_VX = arg };
+                return res;
             },
             else => {
                 return ParseError.InvalidOpcode;
             },
-        };
-
-        return opp;
+        }
     }
 };

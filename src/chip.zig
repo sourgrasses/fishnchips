@@ -11,11 +11,14 @@ const File = @import("std").fs.File;
 pub const Chip8 = struct {
     allocator: *Allocator,
     cpu: *Cpu,
+    ram: []u8,
 
-    pub fn new(allocator: *Allocator) Chip8 {
+    pub fn new(allocator: *Allocator) !Chip8 {
         return Chip8{
             .allocator = allocator,
             .cpu = &Cpu.new(),
+            // put the RAM on the heap
+            .ram = try allocator.alloc(u8, 4096),
         };
     }
 
@@ -28,6 +31,7 @@ pub const Chip8 = struct {
         while (chunks.next()) |chunk| {
             const op = try Disasm.parse(chunk);
             self.cpu.cycle(op);
+            std.debug.warn("{X}\n", self.cpu);
         }
     }
 };
