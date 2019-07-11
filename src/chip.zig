@@ -28,7 +28,7 @@ pub const Chip8 = struct {
         };
     }
 
-    pub fn run_rom(self: Chip8, filename: []const u8) !void {
+    pub fn run_rom(self: *Chip8, filename: []const u8) !void {
         // just read the whole file into memory since these roms are *tiny*
         const rom = try io.readFileAlloc(self.allocator, filename);
 
@@ -38,6 +38,7 @@ pub const Chip8 = struct {
             const op = try Disasm.parse(chunk);
             self.cpu.cycle(op);
             std.debug.warn("{x}\n", self.cpu.v);
+            self.disp.render();
         }
     }
 };

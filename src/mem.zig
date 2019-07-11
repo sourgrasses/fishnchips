@@ -22,8 +22,8 @@ pub const ChunkIterator = struct {
             self.index = self.buf.len;
             return self.rest();
         } else {
-            const slice = self.buf[self.index .. self.index + 2];
-            self.index += 2;
+            const slice = self.buf[self.index .. self.index + self.chunk_size];
+            self.index += self.chunk_size;
 
             return slice;
         }
