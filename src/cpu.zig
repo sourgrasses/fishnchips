@@ -17,6 +17,7 @@ pub const Cpu = struct {
     st: u8,
 
     disp: *Display,
+    stack: [16]u16,
     ram: []u8,
 
     pub fn new(disp: *Display, ram: []u8) Cpu {
@@ -27,65 +28,65 @@ pub const Cpu = struct {
             },
 
             .i = 0,
-            .pc = 0,
+            .pc = 0x0200,
             .sp = 0,
 
             .dt = 0,
             .st = 0,
 
             .disp = disp,
+            .stack = [_]u16{
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+            },
             .ram = ram,
         };
     }
 
     pub fn cycle(self: *Cpu, op: Opcode) void {
-        std.debug.warn("{}\n", op);
-
         switch (op) {
             Opcode.SYS => |top| {
                 switch (top) {
                     SysFn.NOP => return,
                     SysFn.CLS => self.disp.clear(),
-                    SysFn.RET => return,
+                    SysFn.RET => {
+                        self.sp -= 1;
+                        self.pc = self.stack[self.sp];
+                    },
                 }
             },
             Opcode.JP => |top| { // top = this op
                 self.pc = @intCast(u16, top);
+                return;
             },
             Opcode.CALL => |top| {
+                self.stack[self.sp] = self.pc;
                 self.sp += 1;
                 // put the current pc on top of the stack
                 self.pc = @intCast(u16, top);
+                return;
             },
             Opcode.SE_VX_NN => |top| {
                 if (self.v[top.Reg] == top.Val) {
                     self.pc += 2;
-                } else {
-                    self.pc += 1;
                 }
             },
             Opcode.SNE_VX_NN => |top| {
                 if (self.v[top.Reg] != top.Val) {
                     self.pc += 2;
-                } else {
-                    self.pc += 1;
                 }
             },
             Opcode.SE_VX_VY => |top| {
                 if (self.v[top.RegX] == self.v[top.RegY]) {
                     self.pc += 2;
-                } else {
-                    self.pc += 1;
                 }
             },
             Opcode.LD_VX_NN => |top| {
                 self.v[top.Reg] = top.Val;
-                self.pc += 1;
             },
             Opcode.ADD_VX_NN => |top| {
                 // let's assume for now we want this to wrap around on overflow
                 self.v[top.Reg] = self.v[top.Reg] +% top.Val;
-                self.pc += 1;
             },
             Opcode.LD_VX_VY_OP => |top| {
                 switch (top.Op) {
@@ -139,8 +140,6 @@ pub const Cpu = struct {
             Opcode.SNE_VX_VY => |top| {
                 if (self.v[top.RegX] != self.v[top.RegY]) {
                     self.pc += 2;
-                } else {
-                    self.pc += 1;
                 }
             },
             Opcode.LD_I_NNN => |top| {
@@ -148,6 +147,7 @@ pub const Cpu = struct {
             },
             Opcode.JP_V0_NNN => |top| {
                 self.pc = self.v[0x0] +% top;
+                return;
             },
             Opcode.RND_VX_NN => |top| {
                 // TODO: randomize rnd
@@ -194,5 +194,20 @@ pub const Cpu = struct {
             },
             else => unreachable,
         }
+
+        self.pc += 2;
+    }
+
+    pub fn show(self: Cpu) void {
+        std.debug.warn("Cpu{{\n");
+        for (self.v) |v, i| {
+            std.debug.warn("    v[{x}]: {x}\n", i, v);
+        }
+        std.debug.warn("    i: {x}\n", self.i);
+        std.debug.warn("    pc: {x}\n", self.pc);
+        std.debug.warn("    sp: {x}\n", self.sp);
+        std.debug.warn("    dt: {x}\n", self.dt);
+        std.debug.warn("    st: {x}\n", self.st);
+        std.debug.warn("}}\n");
     }
 };

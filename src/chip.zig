@@ -13,7 +13,7 @@ pub const Chip8 = struct {
     allocator: *Allocator,
     disp: Display,
     ram: []u8,
-    cpu: *Cpu,
+    cpu: Cpu,
 
     pub fn new(allocator: *Allocator) !Chip8 {
         var disp = try Display.new();
@@ -24,20 +24,19 @@ pub const Chip8 = struct {
             .disp = disp,
             // put the RAM on the heap
             .ram = ram,
-            .cpu = &Cpu.new(&disp, ram),
+            .cpu = Cpu.new(&disp, ram),
         };
     }
 
     pub fn run_rom(self: *Chip8, filename: []const u8) !void {
         // just read the whole file into memory since these roms are *tiny*
         const rom = try io.readFileAlloc(self.allocator, filename);
+        std.debug.warn("{} bytes\n", rom.len);
 
-        var chunks = mem.chunks(rom, 2);
-
-        while (chunks.next()) |chunk| {
-            const op = try Disasm.parse(chunk);
+        while (true) {
+            const op = try Disasm.parse(rom[(self.cpu.pc - 0x0200)..]);
+            std.debug.warn("{}\n", op);
             self.cpu.cycle(op);
-            std.debug.warn("{x}\n", self.cpu.v);
             self.disp.render();
         }
     }
